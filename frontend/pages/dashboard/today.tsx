@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabaseClient";
+import { getSupabase } from "../../lib/supabaseClient";
 
 type Task = {
   id: string;
@@ -19,18 +19,44 @@ export default function TodayDashboard() {
     setError(null);
 
     try {
-      // TODO:
-      // - Query tasks that are due today and not completed
-      // - Use supabase.from("tasks").select(...)
-      // - You can do date filtering in SQL or client-side
+      const today = new Date();
+      const start = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        0,
+        0,
+        0
+      );
+      const end = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        23,
+        59,
+        59
+      );
 
-      // Example:
-      // const { data, error } = await supabase
-      //   .from("tasks")
-      //   .select("*")
-      //   .eq("status", "open");
+      const supabase = getSupabase();
+      if (!supabase) {
+        setError("Supabase client unavailable in this environment");
+        setLoading(false);
+        return;
+      }
 
-      setTasks([]);
+      const client: any = supabase;
+
+      const { data, error } = await client
+        .from("tasks")
+        .select("id, type, status, application_id, due_at")
+        .gte("due_at", start.toISOString())
+        .lte("due_at", end.toISOString())
+        .neq("status", "completed")
+        .order("due_at", { ascending: true });
+
+      if (error) throw error;
+
+      setTasks(data || []);
     } catch (err: any) {
       console.error(err);
       setError("Failed to load tasks");
@@ -41,9 +67,23 @@ export default function TodayDashboard() {
 
   async function markComplete(id: string) {
     try {
-      // TODO:
-      // - Update task.status to 'completed'
-      // - Re-fetch tasks or update state optimistically
+      const supabase = getSupabase();
+      if (!supabase) {
+        alert("Supabase client unavailable in this environment");
+        return;
+      }
+
+      const client: any = supabase;
+
+      const { error } = await client
+        .from("tasks")
+        .update({ status: "completed" })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      // Refresh list
+      fetchTasks();
     } catch (err: any) {
       console.error(err);
       alert("Failed to update task");
